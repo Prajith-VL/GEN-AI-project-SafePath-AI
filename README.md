@@ -1,6 +1,6 @@
-# RoadGuard AI
+# SafePath AI
 
-RoadGuard AI is a multi-service road-safety monitoring project with a React dashboard, an Express backend, and a FastAPI-based computer vision service powered by YOLO.
+SafePath AI is a multi-service road-safety monitoring project with a React dashboard, an Express backend, and a FastAPI-based computer vision service powered by YOLO.
 
 ## Project structure
 

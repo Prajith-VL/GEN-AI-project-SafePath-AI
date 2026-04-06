@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 import cv2
@@ -14,26 +14,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load a model from env or common local paths.
+def _has_tflite_runtime():
+    try:
+        import tflite_runtime.interpreter  # noqa: F401
+        return True
+    except ImportError:
+        pass
+
+    try:
+        import tensorflow  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _can_use_model(candidate):
+    if not candidate or not os.path.exists(candidate):
+        return False
+    if candidate.endswith(".tflite") and not _has_tflite_runtime():
+        print(
+            f"Skipping {candidate}: TensorFlow/TFLite runtime is not installed. "
+            "Using a .pt model instead."
+        )
+        return False
+    return True
+
+
+# Prefer PyTorch models unless a compatible TFLite runtime is available.
 MODEL_PATH = os.getenv("MODEL_PATH")
 MODEL_CANDIDATES = [
     MODEL_PATH,
     "app/best.pt",
-    "app/best.tflite",
     "best.pt",
-    "best.tflite",
     "yolov8n.pt",
+    "app/best.tflite",
+    "best.tflite",
 ]
 
 model = None
+selected_model_path = None
 for candidate in MODEL_CANDIDATES:
-    if candidate and os.path.exists(candidate):
+    if _can_use_model(candidate):
         model = YOLO(candidate)
+        selected_model_path = candidate
+        print(f"Loaded YOLO model: {candidate}")
         break
 
 if model is None:
     raise FileNotFoundError(
-        "No YOLO model file found. Set MODEL_PATH or place a model in ai-service."
+        "No usable YOLO model file found. Install TensorFlow/TFLite for .tflite models "
+        "or place a .pt model in ai-service."
     )
 
 @app.post("/detect")
@@ -41,6 +71,9 @@ async def detect(file: UploadFile = File(...)):
     contents = await file.read()
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if img is None:
+        raise HTTPException(status_code=400, detail="Invalid image upload")
 
     # Run inference
     results = model(img)
@@ -61,4 +94,11 @@ async def detect(file: UploadFile = File(...)):
                 "bbox": [x1, y1, x2 - x1, y2 - y1] # x, y, w, h
             })
 
-    return detections
+    return {
+        "detections": detections,
+        "frame": {
+            "width": int(img.shape[1]),
+            "height": int(img.shape[0]),
+        },
+        "model": selected_model_path,
+    }

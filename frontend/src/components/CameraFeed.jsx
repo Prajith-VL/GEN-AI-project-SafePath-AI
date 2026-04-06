@@ -1,28 +1,54 @@
 import React, { useEffect } from 'react';
 
-const CameraFeed = ({ isActive, videoRef }) => {
+const CameraFeed = ({ demoVideoUrl, isActive, sourceMode, videoRef }) => {
   useEffect(() => {
     let stream;
-    if (isActive) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then((s) => {
-          stream = s;
-          if (videoRef.current) videoRef.current.srcObject = stream;
-        })
-        .catch(err => console.error("Camera error:", err));
-    } else {
+
+    const stopCurrentStream = () => {
       if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
         videoRef.current.srcObject = null;
       }
+    };
+
+    if (!isActive) {
+      stopCurrentStream();
+      return undefined;
     }
-    return () => stream?.getTracks().forEach(t => t.stop());
-  }, [isActive, videoRef]);
+
+    if (sourceMode === 'demo') {
+      stopCurrentStream();
+      if (videoRef.current) {
+        videoRef.current.src = demoVideoUrl || '';
+        if (demoVideoUrl) {
+          videoRef.current.load();
+          videoRef.current.play().catch(() => {});
+        }
+      }
+      return undefined;
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then((capturedStream) => {
+        stream = capturedStream;
+        if (videoRef.current) {
+          videoRef.current.src = '';
+          videoRef.current.srcObject = stream;
+        }
+      })
+      .catch((err) => console.error('Camera error:', err));
+
+    return () => {
+      stream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [demoVideoUrl, isActive, sourceMode, videoRef]);
 
   return (
     <video
       ref={videoRef}
       autoPlay
+      controls={sourceMode === 'demo'}
+      loop={sourceMode === 'demo'}
       playsInline
       muted
       className={`w-full h-full object-cover transition-opacity duration-500 ${isActive ? 'opacity-100' : 'opacity-0'}`}

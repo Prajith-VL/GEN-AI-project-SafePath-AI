@@ -1,6 +1,15 @@
 import React from 'react';
 
-const DetectionOverlay = ({ detections }) => (
+const labelStyles = {
+  person: 'border-red-400 bg-red-500/10 text-red-100',
+  pedestrian: 'border-red-400 bg-red-500/10 text-red-100',
+  pothole: 'border-yellow-400 bg-yellow-500/10 text-yellow-100',
+  cow: 'border-orange-400 bg-orange-500/10 text-orange-100',
+  dog: 'border-orange-400 bg-orange-500/10 text-orange-100',
+  'road barricade': 'border-amber-400 bg-amber-500/10 text-amber-100',
+};
+
+const DetectionOverlay = ({ detections, frameSize }) => (
   <div className="absolute inset-0 pointer-events-none z-10">
     {Array.isArray(detections) && detections.map((det, i) => (
       <div
